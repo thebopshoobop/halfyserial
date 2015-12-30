@@ -1,6 +1,7 @@
 import multiprocessing as mp
-#import time
 import serial
+import json
+import os.path
 
 def listener(): # Run as a separate process to read from the serial port
     i = ''
@@ -25,8 +26,15 @@ def get_status(): # Read and print status
         print(status)
 
 if __name__ == '__main__':
+    # Load values from settings file
+    with open('config.json') as json_data_file:
+        data = json.load(json_data_file)
+        device_name = data['device_name']
+        inputs = int(data['inputs'])
+        outputs = int(data['outputs'])
+
     try:
-        halfy = serial.Serial('/dev/ttyUSB0') # Attempt to initialize serial port
+        halfy = serial.Serial(device_name) # Attempt to initialize serial port
     except serial.serialutil.SerialException as err: # Catch exceptions from pyserial
         print("Serial Port Error:", err)
     else:

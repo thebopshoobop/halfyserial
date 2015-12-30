@@ -11,3 +11,5 @@ pip-selfcheck.json
 
 # Me
 todo
+config.json
+*.kate-swp
