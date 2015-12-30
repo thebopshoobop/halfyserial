@@ -25,19 +25,22 @@ def get_status(): # Read and print status
         print(status)
 
 if __name__ == '__main__':
-    halfy = serial.Serial('/dev/ttyUSB0') # Initialize serial port
-    q = mp.Queue() #Initialize queue to talk to listener process
-        
-    # Initialize and start listener as a separate process
-    p = mp.Process(target=listener)
-    p.start()
-    
-    get_status()
-    
-    # If process is still active
-    if p.is_alive():
-        print("Done.")
+    try:
+        halfy = serial.Serial('/dev/ttyUSB0') # Attempt to initialize serial port
+    except serial.serialutil.SerialException as err: # Catch exceptions from pyserial
+        print("Serial Port Error:", err)
+    else:
+        q = mp.Queue() #Initialize queue to talk to listener process
 
-        # Terminate
-        p.terminate()
-        p.join()
+        # Initialize and start listener as a separate process
+        p = mp.Process(target=listener)
+        p.start()
+        get_status()
+
+        # If process is still active
+        if p.is_alive():
+            print("Done.")
+
+            # Terminate
+            p.terminate()
+            p.join()
