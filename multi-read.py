@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import serial
 import json
-import os.path
 
 def listener(): # Run as a separate process to read from the serial port
     i = ''
@@ -32,6 +31,7 @@ if __name__ == '__main__':
         device_name = data['device_name']
         inputs = int(data['inputs'])
         outputs = int(data['outputs'])
+        level = int(data['level')
 
     try:
         halfy = serial.Serial(device_name) # Attempt to initialize serial port
