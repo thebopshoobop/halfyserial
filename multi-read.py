@@ -32,15 +32,25 @@ def get_status(segment): # Read and print input or output statuses
         get_single_status(segment, port)
 
 def get_single_status(segment, port):
-    segment_char = 'O' # Default to checking output
-    if segment is inputs: # Override default and check input
-        segment_char = 'I'
+    try:
+        # Inputs or outputs?
+        if segment is outputs:
+            segment_char = 'O'
+        elif segment is inputs: # Override default and check input
+            segment_char = 'I'
+        else:
+            raise ConfigError("neither inputs or outputs was passed:", segment)
 
-    command_list = 'SL', str(level), segment_char, str(port), 'T' # Make a list of strings
-    command_string = "".join(command_list) # Concatenate into a single string
-    command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-    status = signaler(command_bytes) # Signal the halfy
-    print(status)
+        if 1 <= port <= segment:
+            command_list = 'SL', str(level), segment_char, str(port), 'T' # Make a list of strings
+            command_string = "".join(command_list) # Concatenate into a single string
+            command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
+            status = signaler(command_bytes) # Signal the halfy
+            print(status)
+        else:
+            raise ConfigError("port is not within active range:", port)
+    except ConfigError as err:
+        print("Status query error:", err.error_message, err.incorrect_value)
 
 def parse_config():
     # Load values from config file
@@ -87,6 +97,8 @@ if __name__ == '__main__':
         get_status(inputs)
         get_single_status(outputs, 2)
         get_single_status(inputs, 4)
+        get_status(5)
+        get_single_status(outputs, 5)
 
         # If process is still active
         if p.is_alive():
