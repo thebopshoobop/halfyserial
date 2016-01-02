@@ -44,10 +44,15 @@ def get_single_status(port):
         command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
         halfy_response = signaler(command_bytes) # Signal the halfy
         response_list = re.split(r'[\(|\ \)]', halfy_response) # Break the response string into a list
-        response_list.pop(0) # Remove the first entry (the command)
-        response = [ int(x) for x in response_list if x != '' ][0] # Drop null entries, convert to int
-        status = { port : response } # Compose dictionary
-        return status
+        response_check = response_list.pop(0) # Remove the first entry (the command)
+        response_chars = list(response_check) # Turn the command into a list of chars
+        response_letter = response_chars.pop() # Grab the last char
+        if response_letter == 'T':
+            response = [ int(x) for x in response_list if x != '' ][0] # Drop null entries, convert to int
+            status = { port : response } # Compose dictionary
+            return status
+        else:
+            raise ConfigError("command was not successfully implemented:", halfy_response)
     else:
         raise ConfigError("port is not within active range:", port)
 
