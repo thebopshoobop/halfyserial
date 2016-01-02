@@ -18,7 +18,7 @@ def listener(): # Run as a separate process to read from the serial port
 def signaler(message): # Send a command to the halfy and return the response
     output = []
     halfy.write(message) # Write the status command to the serial port
-    p.join(.125) # Wait (1/8th of a second) for the response to accumulate in the queue
+    p.join(.0625) # Wait (1/16th of a second) for the response to accumulate in the queue
     
     # Translate the queue into a list
     while not q.empty():
@@ -50,6 +50,21 @@ def get_single_status(port):
         return status
     else:
         raise ConfigError("port is not within active range:", port)
+
+def set_single_status(out_port, in_port):
+    if 1 <= out_port <= outputs and 1 <= in_port <= inputs:
+        command_list = 'CL', str(level), 'I', str(in_port), 'O', str(out_port), 'T'
+        command_string = "".join(command_list) # Concatenate into a single string
+        command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
+        halfy_response = signaler(command_bytes) # Signal the halfy
+        response_chars = list(halfy_response) # Turn the response into a list of chars
+        response = response_chars.pop() # Grab the last char
+        if response == 'T':
+            return True
+        else:
+            raise ConfigError("command was not successfully implemented:", halfy_response)
+    else:
+        raise ConfigError("output and/or input port is not within active range:", { out_port : in_port})
 
 def parse_config():
     # Load values from config file
@@ -87,19 +102,18 @@ if __name__ == '__main__':
     except ConfigError as err:
         print("Config file value error:", err.error_message, err.incorrect_value)
     else:
-        q = mp.Queue() #Initialize queue to talk to listener process
+        q = mp.Queue() # Initialize queue to talk to listener process
 
         # Initialize and start listener as a separate process
         p = mp.Process(target=listener)
         p.start()
         try:
+            set_single_status(3, 2)
             out_dict = get_status()
             for key in range(outputs):
                 print("Output", key + 1, "is connected to Input", out_dict[key + 1])
-            print(get_single_status(2))
-            print(get_single_status(12))
         except ConfigError as err:
-            print("Status query error:", err.error_message, err.incorrect_value)
+            print("Command error:", err.error_message, err.incorrect_value)
 
         # If process is still active
         if p.is_alive():
