@@ -2,6 +2,7 @@ import multiprocessing as mp
 import serial
 import json
 import os.path
+import re
 
 class ConfigError(Exception):
     def __init__(self, error_message, incorrect_value):
@@ -25,32 +26,27 @@ def signaler(message): # Send a command to the halfy and return the response
 
     return ''.join(output) # Concatenate ('' delimited) the character list and return
 
-def get_status(segment): # Read and print input or output statuses
+def get_status(): # Read and print output statuses
     # Generate and excecute status comands
     status = {}
-    for i in range(segment):
+    for i in range(outputs):
         port = i + 1 # Switch to 1-indexed range
         try:
-            status.update(get_single_status(segment, port))
+            status.update(get_single_status(port))
         except:
             raise
     return status
 
-def get_single_status(segment, port):
-    # Inputs or outputs?
-    if segment is outputs:
-        segment_char = 'O'
-    elif segment is inputs: # Override default and check input
-        segment_char = 'I'
-    else:
-       raise ConfigError("neither inputs or outputs was passed:", segment)
-
-    if 1 <= port <= segment:
-        command_list = 'SL', str(level), segment_char, str(port), 'T' # Make a list of strings
+def get_single_status(port):
+    if 1 <= port <= outputs:
+        command_list = 'SL', str(level), 'O', str(port), 'T' # Make a list of strings
         command_string = "".join(command_list) # Concatenate into a single string
         command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
         halfy_response = signaler(command_bytes) # Signal the halfy
-        status = { port : halfy_response }
+        response_list = re.split(r'[\(|\ \)]', halfy_response) # Break the response string into a list
+        response_list.pop(0) # Remove the first entry (the command)
+        response = [ int(x) for x in response_list if x != '' ][0] # Drop null entries, convert to int
+        status = { port : response } # Compose dictionary
         return status
     else:
         raise ConfigError("port is not within active range:", port)
@@ -97,12 +93,11 @@ if __name__ == '__main__':
         p = mp.Process(target=listener)
         p.start()
         try:
-            print(get_status(outputs))
-            print(get_status(inputs))
-            print(get_single_status(outputs, 2))
-            print(get_single_status(inputs, 4))
-#            print(get_status(5))
-            print(get_single_status(outputs, 12))
+            out_dict = get_status()
+            for key in range(outputs):
+                print("Output", key + 1, "is connected to Input", out_dict[key + 1])
+            print(get_single_status(2))
+            print(get_single_status(12))
         except ConfigError as err:
             print("Status query error:", err.error_message, err.incorrect_value)
 
