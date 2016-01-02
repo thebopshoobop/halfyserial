@@ -27,30 +27,33 @@ def signaler(message): # Send a command to the halfy and return the response
 
 def get_status(segment): # Read and print input or output statuses
     # Generate and excecute status comands
+    status = {}
     for i in range(segment):
         port = i + 1 # Switch to 1-indexed range
-        get_single_status(segment, port)
+        try:
+            status.update(get_single_status(segment, port))
+        except:
+            raise
+    return status
 
 def get_single_status(segment, port):
-    try:
-        # Inputs or outputs?
-        if segment is outputs:
-            segment_char = 'O'
-        elif segment is inputs: # Override default and check input
-            segment_char = 'I'
-        else:
-            raise ConfigError("neither inputs or outputs was passed:", segment)
+    # Inputs or outputs?
+    if segment is outputs:
+        segment_char = 'O'
+    elif segment is inputs: # Override default and check input
+        segment_char = 'I'
+    else:
+       raise ConfigError("neither inputs or outputs was passed:", segment)
 
-        if 1 <= port <= segment:
-            command_list = 'SL', str(level), segment_char, str(port), 'T' # Make a list of strings
-            command_string = "".join(command_list) # Concatenate into a single string
-            command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-            status = signaler(command_bytes) # Signal the halfy
-            print(status)
-        else:
-            raise ConfigError("port is not within active range:", port)
-    except ConfigError as err:
-        print("Status query error:", err.error_message, err.incorrect_value)
+    if 1 <= port <= segment:
+        command_list = 'SL', str(level), segment_char, str(port), 'T' # Make a list of strings
+        command_string = "".join(command_list) # Concatenate into a single string
+        command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
+        halfy_response = signaler(command_bytes) # Signal the halfy
+        status = { port : halfy_response }
+        return status
+    else:
+        raise ConfigError("port is not within active range:", port)
 
 def parse_config():
     # Load values from config file
@@ -93,12 +96,15 @@ if __name__ == '__main__':
         # Initialize and start listener as a separate process
         p = mp.Process(target=listener)
         p.start()
-        get_status(outputs)
-        get_status(inputs)
-        get_single_status(outputs, 2)
-        get_single_status(inputs, 4)
-        get_status(5)
-        get_single_status(outputs, 5)
+        try:
+            print(get_status(outputs))
+            print(get_status(inputs))
+            print(get_single_status(outputs, 2))
+            print(get_single_status(inputs, 4))
+#            print(get_status(5))
+            print(get_single_status(outputs, 12))
+        except ConfigError as err:
+            print("Status query error:", err.error_message, err.incorrect_value)
 
         # If process is still active
         if p.is_alive():
