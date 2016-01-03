@@ -27,12 +27,11 @@ def signaler(message): # Send a command to the halfy and return the response
     return ''.join(output) # Concatenate ('' delimited) the character list and return
 
 def get_status(): # Read and print output statuses
-    # Generate and excecute status comands
-    status = {}
-    for i in range(outputs):
+    status = {} # Dictionary of statuses
+    for i in range(outputs): # Iterate over the outputs
         port = i + 1 # Switch to 1-indexed range
         try:
-            status.update(get_single_status(port))
+            status.update(get_single_status(port)) # Attempt to add a status entry to the dictionary
         except:
             raise
     return status
@@ -40,36 +39,43 @@ def get_status(): # Read and print output statuses
 def get_single_status(port):
     if 1 <= port <= outputs:
         command_list = 'SL', str(level), 'O', str(port), 'T' # Make a list of strings
-        command_string = "".join(command_list) # Concatenate into a single string
-        command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-        halfy_response = signaler(command_bytes) # Signal the halfy
+        halfy_response = build_command(command_list) # Signal the halfy
         response_list = re.split(r'[\(|\ \)]', halfy_response) # Break the response string into a list
-        response_check = response_list.pop(0) # Remove the first entry (the command)
-        response_chars = list(response_check) # Turn the command into a list of chars
-        response_letter = response_chars.pop() # Grab the last char
-        if response_letter == 'T':
-            response = [ int(x) for x in response_list if x != '' ][0] # Drop null entries, convert to int
-            status = { port : response } # Compose dictionary
+        if check_command(response_list.pop(0)): # Remove the command response and check that it succeeded
+            response = [ int(x) for x in response_list if x != '' ] # Drop null entries, convert to int
+            if not response:
+                return { port : '' } # Return null string on unset output
+            else:
+                return { port : response[0] } # Compose dictionary
             return status
         else:
             raise ConfigError("command was not successfully implemented:", halfy_response)
     else:
-        raise ConfigError("port is not within active range:", port)
+        raise ConfigError("output port is not within active range:", port)
 
 def set_single_status(out_port, in_port):
     if 1 <= out_port <= outputs and 1 <= in_port <= inputs:
         command_list = 'CL', str(level), 'I', str(in_port), 'O', str(out_port), 'T'
-        command_string = "".join(command_list) # Concatenate into a single string
-        command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-        halfy_response = signaler(command_bytes) # Signal the halfy
-        response_chars = list(halfy_response) # Turn the response into a list of chars
-        response = response_chars.pop() # Grab the last char
-        if response == 'T':
+        halfy_response = build_command(command_list)
+        if check_command(halfy_response):
             return True
         else:
             raise ConfigError("command was not successfully implemented:", halfy_response)
     else:
         raise ConfigError("output and/or input port is not within active range:", { out_port : in_port})
+
+def check_command(response): # Make sure that the command was successfully excecuted by the halfy
+    response_chars = list(response) # Turn the command into a list of chars
+    response_letter = response_chars.pop() # Grab the last char
+    if response_letter == 'T':
+        return True
+    else:
+        return False
+
+def build_command(command_list): 
+    command_string = "".join(command_list) # Concatenate into a single string
+    command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
+    return signaler(command_bytes) # Signal the halfy
 
 def parse_config():
     # Load values from config file
@@ -113,10 +119,13 @@ if __name__ == '__main__':
         p = mp.Process(target=listener)
         p.start()
         try:
-            set_single_status(3, 2)
+            set_single_status(3, 1)
             out_dict = get_status()
             for key in range(outputs):
-                print("Output", key + 1, "is connected to Input", out_dict[key + 1])
+                if not out_dict[key + 1]:
+                    print("Output", key + 1, "is not connected")
+                else:
+                    print("Output", key + 1, "is connected to Input", out_dict[key + 1])
         except ConfigError as err:
             print("Command error:", err.error_message, err.incorrect_value)
 
