@@ -1,0 +1,18 @@
+#header_image {
+    width: 100%
+}
+.button {
+    height: 28px;
+    line-height: 28px;
+    padding: 0 20px;
+}
+.button:hover,
+.botton:focus {
+    border-color: #112E66
+}
+.button:focus {
+    background-color: #e7eaef
+}
+.selected {
+    background-color: #e7eaef
+}

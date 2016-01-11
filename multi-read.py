@@ -3,6 +3,47 @@ import serial
 import json
 import os.path
 import re
+from flask import Flask, render_template, request, redirect, flash, session, url_for
+
+app = Flask(__name__)
+app.secret_key = '7JmEPqJ82SiS9GciBNHB8k82Zg7AvOqg' # A little entropy for the session handling
+
+# If we have a session, load the console, otherwise redirect to the login
+@app.route('/')
+def index():
+    if 'username' in session:
+        status_dict = get_status()
+        print(status_dict)
+        return render_template('console.html', outputs=config['outputs'], inputs=config['inputs'], connections=status_dict)
+    else:
+        return redirect(url_for('login'))
+
+# Simple session, just a username
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        session['username'] = request.form['username']
+        return redirect(url_for('index'))
+    else:
+        return render_template('login.html')
+
+# Remove the username and redirect to index (and from there to login)
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('index'))
+
+# Affect a port switch and redirect to index
+@app.route('/switch')
+def middle():
+    output_port = int(request.args.get('output_port', ''))
+    input_port = int(request.args.get('input_port', ''))
+    try:
+        set_single_status(output_port, input_port)
+    except ConfigError as err:
+        flash_message = err.error_message
+        flash(flash_message)
+    return redirect(url_for('index'))
 
 class ConfigError(Exception):
     def __init__(self, error_message, incorrect_value):
@@ -17,7 +58,7 @@ def listener(): # Run as a separate process to read from the serial port
 
 def signaler(message): # Send a command to the halfy and return the response
     output = []
-    halfy.write(message) # Write the status command to the serial port
+    halfy.write(message) # Write the command to the serial port
     p.join(.0625) # Wait (1/16th of a second) for the response to accumulate in the queue
     
     # Translate the queue into a list
@@ -61,13 +102,16 @@ def set_single_status(out_port, in_port):
         else:
             raise ConfigError("command was not successfully implemented:", halfy_response)
     else:
-        raise ConfigError("output and/or input port is not within active range:", { out_port : in_port})
+        raise ConfigError("output and/or input port is not active:", { out_port : in_port})
 
 def check_command(response): # Make sure that the command was successfully excecuted by the halfy
     response_chars = list(response) # Turn the command into a list of chars
-    response_letter = response_chars.pop() # Grab the last char
-    if response_letter == 'T':
-        return True
+    if response_chars != []: # Make sure that there's something to check
+        response_letter = response_chars.pop() # Grab the last char
+        if response_letter == 'T': # Make sure it's a 'T'
+            return True
+        else:
+            return False
     else:
         return False
 
@@ -83,7 +127,7 @@ def parse_config():
 
     # Make our string dictionary entries into integers
     config['level'] = int(config['level'])
-    for port in 'inputs', 'outputs': 
+    for port in 'inputs', 'outputs':
         for key in config[port]: # Iterate over the keys in the input/output dictionaries
             config[port][int(key)] = config[port].pop(key) # Create a new dictionary item whose key is an integer
 
@@ -91,11 +135,11 @@ def parse_config():
     if not os.path.exists(config['device_name']): # Serial port in use: string ['/dev/tty*']
         raise ConfigError("device_name does not exist [/dev/tty*]:", config['device_name'])
     for input_number in config['inputs']:
-        if not 1 <= input_number <= 8: # Number of inputs in use: int [1-8]
-            raise ConfigError("inputs is out of the allowed range [1-8]:", config['inputs'])
+        if not 1 <= int(input_number) <= 8: # Number of inputs in use: int [1-8]
+            raise ConfigError("input", input_number, "is out of the allowed range [1-8]:", config['inputs'])
     for output_number in config['outputs']:
-        if not 1 <= output_number <= 4: # Number of outputs in use: int [1-4]
-            raise ConfigError("outputs is out of the allowed range [1-4]:", config['outputs'])
+        if not 1 <= int(output_number) <= 4: # Number of outputs in use: int [1-4]
+            raise ConfigError("output", output_number, "is out of the allowed range [1-4]:", config['outputs'])
     if not 1 <= config['level'] <= 2: # Matrix switcher level in use: int [1-2]
         raise ConfigError("level is out of the allowed range [1-2]:", config['level'])
 
@@ -117,24 +161,20 @@ if __name__ == '__main__':
     except ConfigError as err:
         print("Config file value error:", err.error_message, err.incorrect_value)
     else:
-        q = mp.Queue() # Initialize queue to talk to listener process
-
-        # Initialize and start listener as a separate process
-        p = mp.Process(target=listener)
-        p.start()
+        
         try:
-            set_single_status(1, 7)
-            out_dict = get_status()
-            for output_port in sorted(config['outputs']):
-                if not out_dict[output_port]:
-                    print(config['outputs'][output_port], "is not connected")
-                else:
-                    print(config['outputs'][output_port], "is connected to", config['inputs'][out_dict[output_port]])
-        except ConfigError as err:
-            print("Command error:", err.error_message, err.incorrect_value)
+            q = mp.Queue() # Initialize queue to talk to listener process
 
-        # If process is still active"Output"
-        if p.is_alive():
-            # Terminate
-            p.terminate()
-            p.join()
+            # Initialize and start listener as a separate process
+            p = mp.Process(target=listener)
+            p.start()
+
+            app.run(debug=True)
+        except KeyboardInterrupt:
+            print("Forced Shutdown")
+            halfy.close()
+            # If process is still active"Output"
+            if p.is_alive():
+                # Terminate
+                p.terminate()
+                p.join()

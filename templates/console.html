@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block content %}
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="row">
+    {% for message in messages %}
+      <h6 class="flash">{{ message }} </h6>
+    {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+    <div class="row">
+      {% for output_port in outputs %}
+      <div class="one-third column">
+        <h4>{{ outputs[output_port] }}</h4>
+        {% for input_port in inputs %}
+        {% if connections[output_port] == input_port %}
+        <a class="button selected" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ inputs[input_port] }}</a>
+        {% else %}
+        <a class="button" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ inputs[input_port] }}</a>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endfor %}
+      </ul>  
+    </div>
+    <div class="row">
+      <a class="button button-primary u-pull-right" href="/logout">Logout {{ session['username'] }}</a>
+    </div>
+{% endblock %}
