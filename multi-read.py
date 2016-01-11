@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import time
 import serial
 import json
 import os.path
@@ -13,7 +13,6 @@ app.secret_key = '7JmEPqJ82SiS9GciBNHB8k82Zg7AvOqg' # A little entropy for the s
 def index():
     if 'username' in session:
         status_dict = get_status()
-        print(status_dict)
         return render_template('console.html', outputs=config['outputs'], inputs=config['inputs'], connections=status_dict)
     else:
         return redirect(url_for('login'))
@@ -50,22 +49,12 @@ class ConfigError(Exception):
         self.error_message = error_message
         self.incorrect_value = incorrect_value
 
-def listener(): # Run as a separate process to read from the serial port
-    i = ''
-    while True: # Loop forever
-        i = halfy.read(1) # Attempt to read one byte from the serial port
-        q.put(i.decode()) # Decode from byte to character and add to queue
-
 def signaler(message): # Send a command to the halfy and return the response
-    output = []
+    halfy.reset_input_buffer() # Clear the input buffer of leftovers
     halfy.write(message) # Write the command to the serial port
-    p.join(.0625) # Wait (1/16th of a second) for the response to accumulate in the queue
-    
-    # Translate the queue into a list
-    while not q.empty():
-        output.append(q.get())
-
-    return ''.join(output) # Concatenate ('' delimited) the character list and return
+    time.sleep(.05) # Wait (1/20th of a second) for the response from the hafly
+    response = halfy.read(halfy.in_waiting) # Read the number of bytes contained in the input buffer
+    return response.decode() # Decode from ascii bytes to string and return
 
 def get_status(): # Read and print output statuses
     status = {} # Dictionary of statuses
@@ -135,10 +124,10 @@ def parse_config():
     if not os.path.exists(config['device_name']): # Serial port in use: string ['/dev/tty*']
         raise ConfigError("device_name does not exist [/dev/tty*]:", config['device_name'])
     for input_number in config['inputs']:
-        if not 1 <= int(input_number) <= 8: # Number of inputs in use: int [1-8]
+        if not 1 <= input_number <= 8: # Number of inputs in use: int [1-8]
             raise ConfigError("input", input_number, "is out of the allowed range [1-8]:", config['inputs'])
     for output_number in config['outputs']:
-        if not 1 <= int(output_number) <= 4: # Number of outputs in use: int [1-4]
+        if not 1 <= output_number <= 4: # Number of outputs in use: int [1-4]
             raise ConfigError("output", output_number, "is out of the allowed range [1-4]:", config['outputs'])
     if not 1 <= config['level'] <= 2: # Matrix switcher level in use: int [1-2]
         raise ConfigError("level is out of the allowed range [1-2]:", config['level'])
@@ -163,18 +152,7 @@ if __name__ == '__main__':
     else:
         
         try:
-            q = mp.Queue() # Initialize queue to talk to listener process
-
-            # Initialize and start listener as a separate process
-            p = mp.Process(target=listener)
-            p.start()
-
             app.run(debug=True)
         except KeyboardInterrupt:
             print("Forced Shutdown")
             halfy.close()
-            # If process is still active"Output"
-            if p.is_alive():
-                # Terminate
-                p.terminate()
-                p.join()
