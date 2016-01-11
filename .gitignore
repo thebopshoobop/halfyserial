@@ -13,3 +13,4 @@ pip-selfcheck.json
 todo
 config.json
 *.kate-swp
+*.log

@@ -1,3 +1,4 @@
+import logging
 import time
 import serial
 import json
@@ -35,19 +36,21 @@ def logout():
 # Affect a port switch and redirect to index
 @app.route('/switch')
 def middle():
-    output_port = int(request.args.get('output_port', ''))
-    input_port = int(request.args.get('input_port', ''))
     try:
+        output_port = int(request.args.get('output_port', ''))
+        input_port = int(request.args.get('input_port', ''))
         set_single_status(output_port, input_port)
-    except ConfigError as err:
-        flash_message = err.error_message
-        flash(flash_message)
+    except CustomError as err:
+        logging.warning(err.error_message)
+        flash("Warning: something didn't work. Check the logs, yo!")
+    except ValueError as err:
+        logging.warning("Invalid input or output value: {}".format(err))
+        flash("Warning: something didn't work. Check the logs, yo!")
     return redirect(url_for('index'))
 
-class ConfigError(Exception):
-    def __init__(self, error_message, incorrect_value):
+class CustomError(Exception):
+    def __init__(self, error_message):
         self.error_message = error_message
-        self.incorrect_value = incorrect_value
 
 def signaler(message): # Send a command to the halfy and return the response
     halfy.reset_input_buffer() # Clear the input buffer of leftovers
@@ -78,9 +81,9 @@ def get_single_status(port): # Get the input connected to a given output port
                 return { port : response[0] } # Compose dictionary
             return status
         else:
-            raise ConfigError("command was not successfully implemented:", halfy_response)
+            raise CustomError("Get status command was not successfully implemented: {}".format(halfy_response))
     else:
-        raise ConfigError("output port is not within active range:", port)
+        raise CustomError("Output port is not active: {}".format(port))
 
 def set_single_status(out_port, in_port):
     if out_port in config['outputs'] and in_port in config['inputs']: # Make sure that our ports are active
@@ -89,9 +92,9 @@ def set_single_status(out_port, in_port):
         if check_command(halfy_response): # Make sure our command was successful
             return True
         else:
-            raise ConfigError("command was not successfully implemented:", halfy_response)
+            raise CustomError("Set command was not successfully implemented: {}".format(halfy_response))
     else:
-        raise ConfigError("output and/or input port is not active:", { out_port : in_port})
+        raise CustomError("Invalid switch attempted. Output and/or input port is not active: {}".format({ out_port : in_port}))
 
 def check_command(response): # Make sure that the command was successfully excecuted by the halfy
     response_chars = list(response) # Turn the command into a list of chars
@@ -116,21 +119,28 @@ def parse_config():
 
     # Make our string dictionary entries into integers
     config['level'] = int(config['level'])
-    for port in 'inputs', 'outputs':
+    for port in 'inputs', 'outputs': 
         for key in config[port]: # Iterate over the keys in the input/output dictionaries
             config[port][int(key)] = config[port].pop(key) # Create a new dictionary item whose key is an integer
 
     # Sanitize config file variables
     if not os.path.exists(config['device_name']): # Serial port in use: string ['/dev/tty*']
-        raise ConfigError("device_name does not exist [/dev/tty*]:", config['device_name'])
+        raise CustomError("device_name does not exist [/dev/tty*]: {}".format(config['device_name']))
     for input_number in config['inputs']:
         if not 1 <= input_number <= 8: # Number of inputs in use: int [1-8]
-            raise ConfigError("input", input_number, "is out of the allowed range [1-8]:", config['inputs'])
+            raise CustomError("Input {} is out of the allowed range [1-8]: {}".format(input_number, config['inputs']))
     for output_number in config['outputs']:
         if not 1 <= output_number <= 4: # Number of outputs in use: int [1-4]
-            raise ConfigError("output", output_number, "is out of the allowed range [1-4]:", config['outputs'])
+            raise CustomError("Output {} is out of the allowed range [1-4]: {}".format(output_number, config['outputs']))
     if not 1 <= config['level'] <= 2: # Matrix switcher level in use: int [1-2]
-        raise ConfigError("level is out of the allowed range [1-2]:", config['level'])
+        raise CustomError("Level is out of the allowed range [1-2]: {}".format(config['level']))
+    if config['log_level'] is '': # Default to log level WARNING
+        config['log_level'] = 'WARNING'
+    log_level = logging.getLevelName(config['log_level']) # Convert log level for setting below
+    if config['log_file'] is '': # Log to log_file if set
+        logging.basicConfig(level=log_level, format='%(asctime)s %(levelname)s:%(message)s')
+    else: # Or just log to console
+        logging.basicConfig(level=log_level, filename=config['log_file'], format='%(asctime)s %(levelname)s:%(message)s')
 
     return config
 
@@ -140,17 +150,20 @@ if __name__ == '__main__':
         halfy = serial.Serial(config['device_name']) # Attempt to initialize serial port
     # Ensure that the config file is parsed properly and the serial port was initialized
     except serial.serialutil.SerialException as err:
-        print("Serial Port Error:", err)
+        logging.critical("Serial Port Error: {}".format(err))
     except KeyError as err:
-        print("Missing or mislabeled config file key:", err)
+        logging.critical("Missing or mislabeled config file key: {}".format(err))
     except json.decoder.JSONDecodeError as err:
-        print("Misformatted config file:", err)
+        logging.critical("Misformatted config file: {}".format(err))
     except FileNotFoundError as err:
-        print("Missing or misnamed config file:", err)
-    except ConfigError as err:
-        print("Config file value error:", err.error_message, err.incorrect_value)
+        logging.critical("Missing or misnamed config file: {}".format(err))
+    except PermissionError as err:
+        logging.critical("Unable to access log file: {}".format (err))
+    except ValueError as err:
+        logging.critical("Invalid error level passed: {}".format(err))
+    except CustomError as err:
+        logging.critical("Config file value error: {}".format(err.error_message))
     else:
-        
         try:
             app.run(debug=True)
         except KeyboardInterrupt:
