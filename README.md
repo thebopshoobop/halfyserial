@@ -9,7 +9,7 @@ The control interface is a simple responsive web app built with Flask, Jinja2 te
 The config file is called config.json and is located in the same directory as multi-read.py
 It follows the following format outline:
 
-'''JSON
+'''json
 {
     "device_name":"/dev/ttyUSB0",
     "inputs":{
