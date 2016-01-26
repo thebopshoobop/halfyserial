@@ -52,10 +52,20 @@ class CustomError(Exception):
     def __init__(self, error_message):
         self.error_message = error_message
 
-def signaler(message): # Send a command to the halfy and return the response
+def signaler(message, command_type): # Send a command to the halfy and return the response
     halfy.reset_input_buffer() # Clear the input buffer of leftovers
     halfy.write(message) # Write the command to the serial port
-    time.sleep(.05) # Wait (1/20th of a second) for the response from the hafly
+    # Ascertain what kind of command we're sending for timing porpoises
+    if command_type == 'CL':
+        response_length = len(message)
+    elif command_type == 'SL':
+        response_length = len(message) + 2
+    # Wait for the response bytes to appear, max one second
+    timeout = time.time() + 1
+    while halfy.in_waiting < response_length:
+        if time.time() > timeout:
+            break
+    time.sleep(.005) # Wait just a bit longer, because reasons
     response = halfy.read(halfy.in_waiting) # Read the number of bytes contained in the input buffer
     return response.decode() # Decode from ascii bytes to string and return
 
@@ -108,9 +118,10 @@ def check_command(response): # Make sure that the command was successfully excec
         return False
 
 def build_command(command_list): # Generate a command for the halfy, excecute it, and return the result
+    command_type = command_list[0] # Grab the command type to send to signaler
     command_string = "".join(command_list) # Concatenate into a single string
     command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-    return signaler(command_bytes) # Signal the halfy and return
+    return signaler(command_bytes, commmand_type) # Signal the halfy and return
 
 def parse_config():
     # Load values from config file
