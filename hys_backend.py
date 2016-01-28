@@ -4,43 +4,45 @@ import serial
 import json
 import os.path
 import re
+from threading import Lock
 
 class CustomError(Exception):
     def __init__(self, error_message):
         self.error_message = error_message
 
 def signaler(message, command_type): # Send a command to the halfy and return the response
-    halfy.reset_input_buffer() # Clear the input buffer of leftovers
-    logging.debug("Message sent to halfy: {}".format(message))
-    halfy.write(message) # Write the command to the serial port
-    
-    # Ascertain what kind of command we're sending for timing porpoises
-    if command_type == 'CL':
-        response_length = len(message)
-    elif command_type == 'SL':
-        response_length = len(message) + 3
-    # Wait for the response bytes to appear, max 1/20th second. This will catch most responses.
-    timeout = time.time() + .05
-    while halfy.in_waiting < response_length:
-        if time.time() > timeout:
-            logging.debug("Recieved nothing from halfy within initial .05 seconds.")
-            break
-    # Wait for our response, if it's being slow about it.
-    wait_inc = .005 # How long to wait.
-    while True:
-        if wait_inc > 3: # Loop for just over 5 seconds, then errors away!
-            raise CustomError("Response was not recived from halfy in over 5 seconds!")
-        else: # Check if we have any bytes, double the wait for the next round if we don't
-            if halfy.in_waiting == 0:
-                logging.debug("Recieved nothing from halfy. Waiting extra {} seconds.".format(wait_inc))
-                time.sleep(wait_inc)
-                wait_inc = wait_inc * 2
-            else:
-                break
+    with lock: # Only allow one thread to use the signaler at a time
+        halfy.reset_input_buffer() # Clear the input buffer of leftovers
+        logging.debug("Message sent to halfy: {}".format(message))
+        halfy.write(message) # Write the command to the serial port
 
-    response = halfy.read(halfy.in_waiting) # Read the number of bytes contained in the input buffer
-    logging.debug("Message recieved from the halfy: {}".format(response))
-    return response.decode() # Decode from ascii bytes to string and return
+        # Ascertain what kind of command we're sending for timing porpoises
+        if command_type == 'CL':
+            response_length = len(message)
+        elif command_type == 'SL':
+            response_length = len(message) + 3
+        # Wait for the response bytes to appear, max 1/20th second. This will catch most responses.
+        timeout = time.time() + .05
+        while halfy.in_waiting < response_length:
+            if time.time() > timeout:
+                logging.debug("Recieved nothing from halfy within initial .05 seconds.")
+                break
+        # Wait for our response, if it's being slow about it.
+        wait_inc = .005 # How long to wait.
+        while True:
+            if wait_inc > 3: # Loop for just over 5 seconds, then errors away!
+                raise CustomError("Response was not recived from halfy in over 5 seconds!")
+            else: # Check if we have any bytes, double the wait for the next round if we don't
+                if halfy.in_waiting == 0:
+                    logging.debug("Recieved nothing from halfy. Waiting extra {} seconds.".format(wait_inc))
+                    time.sleep(wait_inc)
+                    wait_inc = wait_inc * 2
+                else:
+                    break
+
+        response = halfy.read(halfy.in_waiting) # Read the number of bytes contained in the input buffer
+        logging.debug("Message recieved from the halfy: {}".format(response))
+        return response.decode() # Decode from ascii bytes to string and return
 
 def get_status(): # Read and print output statuses
     status = {} # Dictionary of statuses
@@ -131,6 +133,7 @@ try:
     config = parse_config()
     logging.debug("Config dictionary contains: \n{}".format(config))
     halfy = serial.Serial(config['device_name'])
+    lock = Lock() # A thread lock used to prevent multiple web server threads from using the serial port at once.
 # Ensure that the config file is parsed properly and the serial port was initialized
 except serial.serialutil.SerialException as err:
     logging.critical("Serial Port Error: {}".format(err))
