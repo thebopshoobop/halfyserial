@@ -4,49 +4,6 @@ import serial
 import json
 import os.path
 import re
-from flask import Flask, render_template, request, redirect, flash, session, url_for
-
-app = Flask(__name__)
-app.secret_key = '7JmEPqJ82SiS9GciBNHB8k82Zg7AvOqg' # A little entropy for the session handling
-
-# If we have a session, load the console, otherwise redirect to the login
-@app.route('/')
-def index():
-    if 'username' in session:
-        status_dict = get_status()
-        return render_template('console.html', outputs=config['outputs'], inputs=config['inputs'], connections=status_dict)
-    else:
-        return redirect(url_for('login'))
-
-# Simple session, just a username
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        session['username'] = request.form['username']
-        return redirect(url_for('index'))
-    else:
-        return render_template('login.html')
-
-# Remove the username and redirect to index (and from there to login)
-@app.route('/logout')
-def logout():
-    session.pop('username', None)
-    return redirect(url_for('index'))
-
-# Affect a port switch and redirect to index
-@app.route('/switch')
-def middle():
-    try:
-        output_port = int(request.args.get('output_port', ''))
-        input_port = int(request.args.get('input_port', ''))
-        set_single_status(output_port, input_port)
-    except CustomError as err:
-        logging.warning(err.error_message)
-        flash("Warning: something didn't work. Check the logs, yo!")
-    except ValueError as err:
-        logging.warning("Invalid input or output value: {}".format(err))
-        flash("Warning: something didn't work. Check the logs, yo!")
-    return redirect(url_for('index'))
 
 class CustomError(Exception):
     def __init__(self, error_message):
@@ -54,28 +11,42 @@ class CustomError(Exception):
 
 def signaler(message, command_type): # Send a command to the halfy and return the response
     halfy.reset_input_buffer() # Clear the input buffer of leftovers
+    logging.debug("Message sent to halfy: {}".format(message))
     halfy.write(message) # Write the command to the serial port
+    
     # Ascertain what kind of command we're sending for timing porpoises
     if command_type == 'CL':
         response_length = len(message)
     elif command_type == 'SL':
-        response_length = len(message) + 2
-    # Wait for the response bytes to appear, max one second
-    timeout = time.time() + 1
+        response_length = len(message) + 3
+    # Wait for the response bytes to appear, max 1/20th second. This will catch most responses.
+    timeout = time.time() + .05
     while halfy.in_waiting < response_length:
         if time.time() > timeout:
+            logging.debug("Recieved nothing from halfy within initial .05 seconds.")
             break
-    time.sleep(.005) # Wait just a bit longer, because reasons
+    # Wait for our response, if it's being slow about it.
+    wait_inc = .005 # How long to wait.
+    while True:
+        if wait_inc > 3: # Loop for just over 5 seconds, then errors away!
+            raise CustomError("Response was not recived from halfy in over 5 seconds!")
+        else: # Check if we have any bytes, double the wait for the next round if we don't
+            if halfy.in_waiting == 0:
+                logging.debug("Recieved nothing from halfy. Waiting extra {} seconds.".format(wait_inc))
+                time.sleep(wait_inc)
+                wait_inc = wait_inc * 2
+            else:
+                break
+
     response = halfy.read(halfy.in_waiting) # Read the number of bytes contained in the input buffer
+    logging.debug("Message recieved from the halfy: {}".format(response))
     return response.decode() # Decode from ascii bytes to string and return
 
 def get_status(): # Read and print output statuses
     status = {} # Dictionary of statuses
     for output_port in sorted(config['outputs']): # Iterate over the outputs
-        try:
-            status.update(get_single_status(output_port)) # Attempt to add a status entry to the dictionary
-        except:
-            raise
+        status.update(get_single_status(output_port)) # Attempt to add a status entry to the dictionary
+    logging.debug("Status dictionary contains: {}".format(status))
     return status
 
 def get_single_status(port): # Get the input connected to a given output port
@@ -121,7 +92,7 @@ def build_command(command_list): # Generate a command for the halfy, excecute it
     command_type = command_list[0] # Grab the command type to send to signaler
     command_string = "".join(command_list) # Concatenate into a single string
     command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-    return signaler(command_bytes, commmand_type) # Signal the halfy and return
+    return signaler(command_bytes, command_type) # Signal the halfy
 
 def parse_config():
     # Load values from config file
@@ -138,10 +109,10 @@ def parse_config():
     if not os.path.exists(config['device_name']): # Serial port in use: string ['/dev/tty*']
         raise CustomError("device_name does not exist [/dev/tty*]: {}".format(config['device_name']))
     for input_number in config['inputs']:
-        if not 1 <= input_number <= 8: # Number of inputs in use: int [1-8]
+        if not 1 <= int(input_number) <= 8: # Number of inputs in use: int [1-8]
             raise CustomError("Input {} is out of the allowed range [1-8]: {}".format(input_number, config['inputs']))
     for output_number in config['outputs']:
-        if not 1 <= output_number <= 4: # Number of outputs in use: int [1-4]
+        if not 1 <= int(output_number) <= 4: # Number of outputs in use: int [1-4]
             raise CustomError("Output {} is out of the allowed range [1-4]: {}".format(output_number, config['outputs']))
     if not 1 <= config['level'] <= 2: # Matrix switcher level in use: int [1-2]
         raise CustomError("Level is out of the allowed range [1-2]: {}".format(config['level']))
@@ -155,28 +126,20 @@ def parse_config():
 
     return config
 
-if __name__ == '__main__':
-    try:
-        config = parse_config() # Parse and sanitize variables from config file
-        halfy = serial.Serial(config['device_name']) # Attempt to initialize serial port
-    # Ensure that the config file is parsed properly and the serial port was initialized
-    except serial.serialutil.SerialException as err:
-        logging.critical("Serial Port Error: {}".format(err))
-    except KeyError as err:
-        logging.critical("Missing or mislabeled config file key: {}".format(err))
-    except json.decoder.JSONDecodeError as err:
-        logging.critical("Misformatted config file: {}".format(err))
-    except FileNotFoundError as err:
-        logging.critical("Missing or misnamed config file: {}".format(err))
-    except PermissionError as err:
-        logging.critical("Unable to access log file: {}".format (err))
-    except ValueError as err:
-        logging.critical("Invalid error level passed: {}".format(err))
-    except CustomError as err:
-        logging.critical("Config file value error: {}".format(err.error_message))
-    else:
-        try:
-            app.run(debug=True)
-        except KeyboardInterrupt:
-            print("Forced Shutdown")
-            halfy.close()
+# Parse the config file. Initialize the serial port.
+try:
+    config = parse_config()
+    logging.debug("Config dictionary contains: \n{}".format(config))
+    halfy = serial.Serial(config['device_name'])
+# Ensure that the config file is parsed properly and the serial port was initialized
+except serial.serialutil.SerialException as err:
+    logging.critical("Serial Port Error: {}".format(err))
+except KeyError as err:
+    logging.critical("Missing or mislabeled config file key: {}".format(err))
+except FileNotFoundError as err:
+    logging.critical("Missing or misnamed config file: {}".format(err))
+except PermissionError as err:
+    logging.critical("Unable to access log file: {}".format (err))
+except CustomError as err:
+    logging.critical("Config file value error: {}".format(err.error_message))
+
