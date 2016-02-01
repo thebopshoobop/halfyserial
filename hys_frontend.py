@@ -1,8 +1,10 @@
-import hys_backend as halfy
+import hys_backend
 from flask import Flask, render_template, request, redirect, flash, session, url_for
 
 app = Flask(__name__)
 app.secret_key = '7JmEPqJ82SiS9GciBNHB8k82Zg7AvOqg' # A little entropy for the session handling
+
+halfy = hys_backend.MatrixSwitch()
 
 # If we have a session, load the console, otherwise redirect to the login
 @app.route('/')
@@ -10,8 +12,8 @@ def index():
     if 'username' in session:
         try:
             status_dict = halfy.get_status()
-        except halfy.CustomError as err:
-            halfy.logging.warning(err.error_message)
+        except hys_backend.CustomError as err:
+            hys_backend.logging.warning(err.error_message)
             flash("Warning: Failed status check, please refresh.")
             status_dict = {}
         return render_template('console.html', outputs=halfy.config['outputs'], inputs=halfy.config['inputs'], connections=status_dict)
@@ -40,11 +42,11 @@ def middle():
         output_port = int(request.args.get('output_port', ''))
         input_port = int(request.args.get('input_port', ''))
         halfy.set_single_status(output_port, input_port)
-    except halfy.CustomError as err:
-        halfy.logging.warning(err.error_message)
+    except hys_backend.CustomError as err:
+        hys_backend.logging.warning(err.error_message)
         flash("Warning: Possible failed switch. Please check the logs.")
     except ValueError as err:
-        halfy.logging.warning("Invalid input or output value: {}".format(err))
+        hys_backend.logging.warning("Invalid input or output value: {}".format(err))
         flash("Warning: something didn't work. Check the logs, yo!")
     return redirect(url_for('index'))
 
