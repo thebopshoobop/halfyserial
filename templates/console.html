@@ -12,7 +12,7 @@
     <div class="row">
       {% for output_port in outputs %}
       <div class="four columns">
-        <h4>{{ outputs[output_port] }}</h4>
+        <h5>{{ outputs[output_port] }}</h5>
         {% for input_port in inputs %}
         {% if connections[output_port] == input_port %}
         <a class="button selected" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ inputs[input_port] }}</a>

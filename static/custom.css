@@ -2,9 +2,9 @@
     width: 100%
 }
 .button {
-    height: 28px;
-    line-height: 28px;
-    padding: 0 20px;
+    height: 2rem;
+    line-height: 2rem;
+    padding: 0 .8rem;
 }
 .button:hover,
 .botton:focus {
@@ -15,4 +15,11 @@
 }
 .selected {
     background-color: #b9c2d0
+}
+h1, h2, h3, h4, h5, h6 {
+    margin-bottom: 1rem
+}
+.row ~ .row,
+[class*='column'] ~ [class*='column'] {
+    margin-top: 0rem;
 }
