@@ -1,14 +1,15 @@
-# Web app that controls a half-y matrix switcher for my home stereo
+# halfyserial
+##### a web app that controls a half-y matrix switcher for my home stereo
 
 I'm using an AutoPatch half-y matrix switcher that has 8 inputs and 4 outputs.
 The half-y is controlled over a USB serial adapter with pySerial.
-The control interface is a simple responsive web app built with Python3 Flask, Jinja2 templates, and Skeleton.
+The control interface is a simple responsive web app built with [Python 3](https://www.python.org/), [Flask](flask.pocoo.org), [Jinja2 templates](http://jinja.pocoo.org/), and [Skeleton Framework](https://github.com/skeletonframework/skeletonframework) with [normalize.css](https://github.com/necolas/normalize.css/).
 
 ### Installation:
 
-I'm running this on an ODROID C1+ with Ubuntu 14.04, Gunicorn, and Nginx. In order to use up-to-date software, I've added the nginx/stable ppa and installed all my python dependencies via pip in a virtualenv that I've placed under /var/www/.
+This is deployed on [Ubuntu 14.04](http://releases.ubuntu.com/14.04/), [Gunicorn](http://gunicorn.org/), and [Nginx](http://nginx.org/). In order to use up-to-date software, I've added the [nginx/stable ppa](https://launchpad.net/~nginx/+archive/ubuntu/stable) and installed all my python dependencies via pip in a virtualenv.
 
-The hys_nginx file needs to be copied to /etc/nginx/sites-enabled/. The hys_server.conf needs to be copied to /etc/init/.
+The hys_nginx file goes in /etc/nginx/sites-enabled/. The hys_server.conf goes in /etc/init/.
 
 You will need to create a config file.
 
