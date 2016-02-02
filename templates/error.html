@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block content %}
+    <div class="row">
+      <h5>Error!</h5>
+      {% with messages = get_flashed_messages() %}
+      {% if messages %}
+      <div class="row">
+        {% for message in messages %}
+        <h6 class="flash">{{ message }} </h6>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+    </div>
+{% endblock %}

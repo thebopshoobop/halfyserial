@@ -13,23 +13,16 @@ class CustomError(Exception):
 class MatrixSwitch:
     def __init__(self):
         # Parse the config file. Initialize the serial port.
-        try:
-            self.config = {}
-            self.parse_config()
-            logging.debug("Config dictionary contains: \n{}".format(self.config))
-            self.halfy = serial.Serial(self.config['device_name'])
-            self.lock = Lock() # A thread lock used to prevent multiple web server threads from using the serial port at once.
-        # Ensure that the config file is parsed properly and the serial port was initialized
-        except serial.serialutil.SerialException as err:
-            logging.critical("Serial Port Error: {}".format(err))
-        except KeyError as err:
-            logging.critical("Missing or mislabeled config file key: {}".format(err))
-        except FileNotFoundError as err:
-            logging.critical("Missing or misnamed config file: {}".format(err))
-        except PermissionError as err:
-            logging.critical("Unable to access log file: {}".format (err))
-        except CustomError as err:
-            logging.critical("Config file value error: {}".format(err.error_message))
+        self.config = {} # A dictionary for variables gleaned from the config file
+        self.init_status = {} # A dictionary containing our init status and error messages if appropriate
+        self.lock = Lock() # A thread lock used to prevent multiple web server threads from using the serial port at once
+
+        self.parse_config() # Parse our config file.
+        if self.init_status['success']: # If that worked, initialize our serial device
+            try:
+                self.halfy = serial.Serial(self.config['device_name'])
+            except serial.serialutl.SerialException as err:
+                self.init_error( "Serial port initialization error: {}".format(err) )
 
     def signaler(self, message, command_type): # Send a command to the halfy and return the response
         with self.lock: # Only allow one thread to use the signaler at a time
@@ -117,32 +110,54 @@ class MatrixSwitch:
         command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
         return self.signaler(command_bytes, command_type) # Signal the halfy
 
+    def init_error(self, err_msg):
+        logging.critical(err_msg)
+        self.init_status.update( { 'success' : False, 'message' : err_msg } )
+
     def parse_config(self):
-        # Load values from config file
-        with open('config.json') as json_data_file:
-            self.config = json.load(json_data_file) # Make a dictionary from the config file data
+        try:
+            # Load values from config file
+            with open('config.json') as json_data_file:
+                self.config = json.load(json_data_file) # Make a dictionary from the config file data
 
-        # Make our string dictionary entries into integers
-        self.config['level'] = int(self.config['level'])
-        for port in 'inputs', 'outputs': 
-            for key in self.config[port]: # Iterate over the keys in the input/output dictionaries
-                self.config[port][int(key)] = self.config[port].pop(key) # Create a new dictionary item whose key is an integer
+            # Make our string dictionary entries into integers
+            self.config['level'] = int(self.config['level'])
+            for port in 'inputs', 'outputs': 
+                for key in self.config[port]: # Iterate over the keys in the input/output dictionaries
+                    self.config[port][int(key)] = self.config[port].pop(key) # Create a new dictionary item whose key is an integer
 
-        # Sanitize config file variables
-        if not os.path.exists(self.config['device_name']): # Serial port in use: string ['/dev/tty*']
-            raise CustomError("device_name does not exist [/dev/tty*]: {}".format(self.config['device_name']))
-        for input_number in self.config['inputs']:
-            if not 1 <= int(input_number) <= 8: # Number of inputs in use: int [1-8]
-                raise CustomError("Input {} is out of the allowed range [1-8]: {}".format(input_number, self.config['inputs']))
-        for output_number in self.config['outputs']:
-            if not 1 <= int(output_number) <= 4: # Number of outputs in use: int [1-4]
-                raise CustomError("Output {} is out of the allowed range [1-4]: {}".format(output_number, self.config['outputs']))
-        if not 1 <= self.config['level'] <= 2: # Matrix switcher level in use: int [1-2]
-            raise CustomError("Level is out of the allowed range [1-2]: {}".format(self.config['level']))
-        if self.config['log_level'] is '': # Default to log level WARNING
-            self.config['log_level'] = 'WARNING'
-        log_level = logging.getLevelName(self.config['log_level']) # Convert log level for setting below
-        if self.config['log_file'] is '': # Log to log_file if set
-            logging.basicConfig(level=log_level, format='%(asctime)s %(levelname)s:%(message)s')
-        else: # Or just log to console
-            logging.basicConfig(level=log_level, filename=self.config['log_file'], format='%(asctime)s %(levelname)s:%(message)s')
+            # Sanitize config file variables
+            if not os.path.exists(self.config['device_name']): # Serial port in use: string ['/dev/tty*']
+                raise CustomError("device_name does not exist [/dev/tty*]: {}".format(self.config['device_name']))
+            for input_number in self.config['inputs']:
+                if not 1 <= int(input_number) <= 8: # Number of inputs in use: int [1-8]
+                    raise CustomError("Input {} is out of the allowed range [1-8]: {}".format(input_number, self.config['inputs']))
+            for output_number in self.config['outputs']:
+                if not 1 <= int(output_number) <= 4: # Number of outputs in use: int [1-4]
+                    raise CustomError("Output {} is out of the allowed range [1-4]: {}".format(output_number, self.config['outputs']))
+            if not 1 <= self.config['level'] <= 2: # Matrix switcher level in use: int [1-2]
+                raise CustomError("Level is out of the allowed range [1-2]: {}".format(self.config['level']))
+            if self.config['log_level'] is '': # Default to log level WARNING
+                self.config['log_level'] = 'WARNING'
+            log_level = logging.getLevelName(self.config['log_level']) # Convert log level for setting below
+            if self.config['log_file'] is '': # Log to log_file if set
+                logging.basicConfig(level=log_level, format='%(asctime)s %(levelname)s:%(message)s')
+            else: # Or just log to console
+                logging.basicConfig(level=log_level, filename=self.config['log_file'], format='%(asctime)s %(levelname)s:%(message)s')
+
+        # Ensure that the config file is parsed properly
+        except KeyError as err:
+            self.init_error( "Missing or mislabeled config file key: {}".format(err) )
+        except FileNotFoundError as err:
+            self.init_error( "Missing or misnamed config file: {}".format(err) )
+        except PermissionError as err:
+            self.init_error( "Unable to access log file: {}".format(err) )
+        except TypeError as err:
+            self.init_error( "Type error: {}".format(err) )
+        except ValueError as err:
+            self.init_error( "Config file value error: {}".format(err) )
+        except CustomError as err:
+            self.init_error( "Config file value error: {}".format(err.error_message) )
+        else:
+            logging.debug("Config dictionary contains: \n{}".format(self.config))
+            self.init_status.update( { 'success' : True } )

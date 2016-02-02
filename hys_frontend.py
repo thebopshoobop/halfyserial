@@ -10,13 +10,18 @@ halfy = hys_backend.MatrixSwitch()
 @app.route('/')
 def index():
     if 'username' in session:
-        try:
-            status_dict = halfy.get_status()
-        except hys_backend.CustomError as err:
-            hys_backend.logging.warning(err.error_message)
-            flash("Warning: Failed status check, please refresh.")
-            status_dict = {}
-        return render_template('console.html', outputs=halfy.config['outputs'], inputs=halfy.config['inputs'], connections=status_dict)
+        if halfy.init_status['success']:
+            try:
+                status_dict = halfy.get_status()
+            except hys_backend.CustomError as err:
+                hys_backend.logging.warning(err.error_message)
+                flash("Warning: Failed status check, please refresh.")
+                return redirect(url_for('error_page'))
+            else:
+                return render_template('console.html', outputs=halfy.config['outputs'], inputs=halfy.config['inputs'], connections=status_dict)
+        else:
+            flash(halfy.init_status['message'])
+            return redirect(url_for('error_page'))
     else:
         return redirect(url_for('login'))
 
@@ -49,6 +54,11 @@ def middle():
         hys_backend.logging.warning("Invalid input or output value: {}".format(err))
         flash("Warning: something didn't work. Check the logs, yo!")
     return redirect(url_for('index'))
+
+# Something went wrong...
+@app.route('/error')
+def error_page():
+    return render_template('error.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8000)
