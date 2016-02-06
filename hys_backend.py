@@ -31,9 +31,9 @@ class MatrixSwitch:
             logging.debug("Message sent to halfy: {}".format(message))
 
             # Ascertain what kind of command we're sending for timing porpoises
-            if command_type == 'CL':
+            if command_type in [ 'CL', 'DL' ]:
                 response_length = len(message)
-            elif command_type == 'SL':
+            elif command_type is 'SL':
                 response_length = len(message) + 3
             # Wait for the response bytes to appear, max 1/20th second. This will catch most responses.
             timeout = time.time() + .05
@@ -82,7 +82,7 @@ class MatrixSwitch:
         else:
             raise CustomError("Output port is not active: {}".format(port))
 
-    def set_single_status(self, out_port, in_port):
+    def set_single_status(self, out_port, in_port): # Connect one output to one input
         if out_port in self.config['outputs'] and in_port in self.config['inputs']: # Make sure that our ports are active
             command_list = 'CL', str(self.config['level']), 'I', str(in_port), 'O', str(out_port), 'T' # Make a list of strings
             halfy_response = self.build_command(command_list) # Signal the halfy
@@ -91,7 +91,38 @@ class MatrixSwitch:
             else:
                 raise CustomError("Set command was not successfully implemented: {}".format(halfy_response))
         else:
-            raise CustomError("Invalid switch attempted. Output and/or input port is not active: {}".format({ out_port : in_port}))
+            raise CustomError("Invalid switch attempted. Output and/or input port not active: {}".format({ out_port : in_port}))
+
+    def connect_all(self, in_port): # Connect all outputs to one input
+        if in_port in self.config['inputs']: # Make sure that our port is active
+            # Generate a list composed of the output numbers
+            out_list = []
+            for out_port in self.config['outputs']:
+                out_list.append(str(out_port))
+            out_string = ','.join(out_list) # Concatenate that list into a comma-delimited string
+            command_list = 'CL', str(self.config['level']), 'I', str(in_port), 'O', out_string, 'T' # Make a list of strings
+            halfy_response = self.build_command(command_list) # Signal the halfy
+            if self.check_command(halfy_response): # Make sure our command was successful
+                return True
+            else:
+                raise CustomError("Set command was not successfully implemented: {}".format(halfy_response))
+        else:
+            raise CustomError("Invalid switch attempted. Input port is not active: {}".format(in_port))
+
+    def disconnect_output(self, out_port): # Disconnect one output
+        if out_port in self.config['outputs']: # Make sure that our port is active
+            command_list = 'DL', str(self.config['level']), 'O', str(out_port), 'T' # Make a list of strings
+            halfy_response = self.build_command(command_list) # Signal the halfy
+            if self.check_command(halfy_response): # Make sure our command was successful
+                return True
+            else:
+                raise CustomError("Disconnect command was not successfully implemented: {}".format(halfy_response))
+        else:
+            raise CustomError("Invalid disconnect attempted. Output port is not active: {}".format(out_port))
+
+    def disconnect_all(self): # Disconnect all outputs
+        for out_port in self.config['outputs']:
+            self.disconnect_output(out_port)
 
     def check_command(self, response): # Make sure that the command was successfully excecuted by the halfy
         response_chars = list(response) # Turn the command into a list of chars

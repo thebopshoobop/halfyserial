@@ -11,7 +11,7 @@
 {% endwith %}
     <div class="row">
       {% for output_port in outputs %}
-      <div class="four columns">
+      <div class="three columns">
         <h5>{{ outputs[output_port] }}</h5>
         {% for input_port in inputs %}
         {% if connections[output_port] == input_port %}
@@ -20,9 +20,16 @@
         <a class="button" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ inputs[input_port] }}</a>
         {% endif %}
         {% endfor %}
+        <a class="button button-primary" href="/disconnect/{{ output_port }}">Disconnect</a>
       </div>
       {% endfor %}
-      </ul>  
+      <div class="three columns">
+        <h5>All Outputs</h5>
+        {% for input_port in inputs %}
+        <a class="button" href="/connect_all?input_port={{ input_port }}">{{ inputs[input_port] }}</a>
+        {% endfor %}
+        <a class="button button-primary" href="/disconnect">Disconnect</a>
+      </div>
     </div>
     <div class="row">
       <a class="button button-primary u-pull-right" href="/logout">Logout {{ session['username'] }}</a>

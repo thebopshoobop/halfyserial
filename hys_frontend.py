@@ -55,6 +55,37 @@ def middle():
         flash("Warning: something didn't work. Check the logs, yo!")
     return redirect(url_for('index'))
 
+# Connect all outputs to a single input and redirect to index
+@app.route('/connect_all')
+def connect_all():
+    try:
+        input_port = int(request.args.get('input_port', ''))
+        halfy.connect_all(input_port)
+    except hys_backend.CustomError as err:
+        hys_backend.logging.warning(err.error_message)
+        flash("Warning: Possible failed switch. Please check the logs.")
+    except ValueError as err:
+        hys_backend.logging.warning("Invalid input value: {}".format(err))
+        flash("Warning: something didn't work. Check the logs, yo!")
+    return redirect(url_for('index'))
+
+# Disconnect an/all output(s) and redirect to index
+@app.route('/disconnect', defaults={'output_port': 'all'})
+@app.route('/disconnect/<int:output_port>')
+def disconnect(output_port):
+    try:
+        if output_port is 'all':
+            halfy.disconnect_all()
+        else:
+            halfy.disconnect_output(output_port)
+    except hys_backend.CustomError as err:
+        hys_backend.logging.warning(err.error_message)
+        flash("Warning: Possible failed switch. Please check the logs.")
+    except ValueError as err:
+        hys_backend.logging.warning("Invalid output value: {}".format(err))
+        flash("Warning: something didn't work. Check the logs, yo!")
+    return redirect(url_for('index'))
+
 # Something went wrong...
 @app.route('/error')
 def error_page():
