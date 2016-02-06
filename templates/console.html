@@ -10,14 +10,14 @@
   {% endif %}
 {% endwith %}
     <div class="row">
-      {% for output_port in outputs %}
+      {% for output_port, output_label in outputs.items() %}
       <div class="three columns">
-        <h5>{{ outputs[output_port] }}</h5>
-        {% for input_port in inputs %}
+        <h5>{{ output_label }}</h5>
+        {% for input_port, input_label in inputs.items() %}
         {% if connections[output_port] == input_port %}
-        <a class="button selected" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ inputs[input_port] }}</a>
+        <a class="button selected" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ input_label }}</a>
         {% else %}
-        <a class="button" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ inputs[input_port] }}</a>
+        <a class="button" href="/switch?output_port={{ output_port }}&input_port={{ input_port }}">{{ input_label }}</a>
         {% endif %}
         {% endfor %}
         <a class="button button-primary" href="/disconnect/{{ output_port }}">Disconnect</a>
@@ -25,8 +25,8 @@
       {% endfor %}
       <div class="three columns">
         <h5>All Outputs</h5>
-        {% for input_port in inputs %}
-        <a class="button" href="/connect_all?input_port={{ input_port }}">{{ inputs[input_port] }}</a>
+        {% for input_port, input_label in inputs.items() %}
+        <a class="button" href="/connect_all?input_port={{ input_port }}">{{ input_label }}</a>
         {% endfor %}
         <a class="button button-primary" href="/disconnect">Disconnect</a>
       </div>
