@@ -119,19 +119,18 @@ class MatrixSwitch:
             with open('config.json') as json_data_file:
                 self.config = json.load(json_data_file) # Make a dictionary from the config file data
 
-            # Make our string dictionary entries into integers
+            # Make our string dictionary values into integers
             self.config['level'] = int(self.config['level'])
             for port in 'inputs', 'outputs':
-                for key, value in self.config[port].items(): # Iterate over the keys in the input/output dictionaries
-                    self.config[port][int(key)] = self.config[port].pop(key) # Create a new dictionary item whose key is an integer
+                self.config[port] = {int(key):value for key, value in self.config[port].items()}
 
             # Sanitize config file variables
             if not os.path.exists(self.config['device_name']): # Serial port in use: string ['/dev/tty*']
                 raise CustomError("device_name does not exist [/dev/tty*]: {}".format(self.config['device_name']))
-            for input_number in self.config['inputs']:
+            for input_number, input_label in self.config['inputs'].items():
                 if not 1 <= input_number <= 8: # Number of inputs in use: int [1-8]
                     raise CustomError("Input {} is out of the allowed range [1-8]: {}".format(input_number, self.config['inputs']))
-            for output_number in self.config['outputs']:
+            for output_number, output_label in self.config['outputs'].items():
                 if not 1 <= output_number <= 4: # Number of outputs in use: int [1-4]
                     raise CustomError("Output {} is out of the allowed range [1-4]: {}".format(output_number, self.config['outputs']))
             if not 1 <= self.config['level'] <= 2: # Matrix switcher level in use: int [1-2]
