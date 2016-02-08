@@ -24,8 +24,10 @@ class MatrixSwitch:
             except serial.serialutl.SerialException as err:
                 self.init_error( "Serial port initialization error: {}".format(err) )
 
-    def signaler(self, message): # Send a command to the halfy and return the response
+    def signaler(self, command_list): # Send a command to the halfy and return the response
         with self.lock: # Only allow one thread to use the signaler at a time
+            command_string = "".join(command_list) # Concatenate into a single string
+            message = command_string.encode('ascii') # Turn that string into ascii bytes
             self.halfy.reset_input_buffer() # Clear the input buffer of leftovers
             self.halfy.write(message) # Write the command to the serial port
             logging.debug("Message sent to halfy: {}".format(message.decode()))
@@ -65,7 +67,7 @@ class MatrixSwitch:
     def get_single_status(self, port): # Get the input connected to a given output port
         if port in self.config['outputs']: # Make sure port is an active output
             command_list = 'SL', str(self.config['level']), 'O', str(port), 'T' # Make a list of strings
-            halfy_response = self.build_command(command_list) # Signal the halfy
+            halfy_response = self.signaler(command_list) # Signal the halfy
             response_list = re.split(r'[\(|\ \)]', halfy_response) # Break the response string into a list
             response_list.pop(0) # Remove the command response from the list
             response = [ int(x) for x in response_list if x != '' ] # Drop null entries, convert to int
@@ -79,38 +81,33 @@ class MatrixSwitch:
     def set_single_status(self, out_port, in_port): # Connect one output to one input
         if out_port in self.config['outputs'] and in_port in self.config['inputs']: # Make sure that our ports are active
             command_list = 'CL', str(self.config['level']), 'I', str(in_port), 'O', str(out_port), 'T' # Make a list of strings
-            self.build_command(command_list) # Signal the halfy
+            self.signaler(command_list) # Signal the halfy
         else:
             raise CustomError("Invalid switch attempted. Output and/or input port not active: {}".format({ out_port : in_port}))
 
     def connect_all(self, in_port): # Connect all outputs to one input
         if in_port in self.config['inputs']: # Make sure that our port is active
             command_list = 'CL', str(self.config['level']), 'I', str(in_port), 'O', self.get_out_string(), 'T' # Make a list of strings
-            self.build_command(command_list) # Signal the halfy
+            self.signaler(command_list) # Signal the halfy
         else:
             raise CustomError("Invalid switch attempted. Input port is not active: {}".format(in_port))
 
     def disconnect_output(self, out_port): # Disconnect one output
         if out_port in self.config['outputs']: # Make sure that our port is active
             command_list = 'DL', str(self.config['level']), 'O', str(out_port), 'T' # Make a list of strings
-            self.build_command(command_list) # Signal the halfy
+            self.signaler(command_list) # Signal the halfy
         else:
             raise CustomError("Invalid disconnect attempted. Output port is not active: {}".format(out_port))
 
     def disconnect_all(self): # Disconnect all outputs
         command_list = 'DL', str(self.config['level']), 'O', self.get_out_string(), 'T' # Make a list of strings
-        self.build_command(command_list) # Signal the halfy
+        self.signaler(command_list) # Signal the halfy
 
     def get_out_string(self): # Return a comma-delimited string composed of the active output numbers
         out_list = []
         for out_port in self.config['outputs']:
             out_list.append(str(out_port))
         return ','.join(out_list)
-
-    def build_command(self, command_list): # Generate a command for the halfy, excecute it, and return the result
-        command_string = "".join(command_list) # Concatenate into a single string
-        command_bytes = command_string.encode('ascii') # Turn that string into ascii bytes
-        return self.signaler(command_bytes) # Signal the halfy
 
     def init_error(self, err_msg):
         logging.critical(err_msg)
