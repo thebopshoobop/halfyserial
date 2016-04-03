@@ -5,10 +5,35 @@ import json
 import os.path
 import re
 from threading import Lock
+import subprocess
 
 class CustomError(Exception):
     def __init__(self, error_message):
         self.error_message = error_message
+
+class PowerRelay:
+    def __init__(self):
+        self.power_status = self.get_power_status()
+
+    def get_power_status(self):
+        try:
+            response = subprocess.check_output("cat /sys/class/gpio/gpio87/value", shell=True)
+        except subprocess.CalledProcessError as err:
+            logging.critical("Unable to communicate with relay: {}".format(err))
+        else:
+            response_value = int(response.decode()[0])
+            if response_value is 1:
+                return True
+            else:
+                return False
+
+    def power_on(self):
+        if not self.get_power_status():
+            subprocess.call("echo 1 > /sys/class/gpio/gpio87/value", shell=True)
+
+    def power_off(self):
+        if self.get_power_status():
+            subprocess.call("echo 0 > /sys/class/gpio/gpio87/value", shell=True)
 
 class MatrixSwitch:
     def __init__(self):
