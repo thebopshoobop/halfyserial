@@ -5,6 +5,7 @@ app = Flask(__name__)
 app.secret_key = '7JmEPqJ82SiS9GciBNHB8k82Zg7AvOqg' # A little entropy for the session handling
 
 halfy = hys_backend.MatrixSwitch()
+pr = hys_backend.PowerRelay()
 
 # If we have a session, load the console, otherwise redirect to the login
 @app.route('/')
@@ -13,12 +14,13 @@ def index():
         if halfy.init_status['success']:
             try:
                 status_dict = halfy.get_status()
+                amp_power = pr.get_power_status()
             except hys_backend.CustomError as err:
                 hys_backend.logging.warning(err.error_message)
                 flash("Warning: Failed status check, please refresh.")
                 return redirect(url_for('error_page'))
             else:
-                return render_template('console.html', outputs=halfy.config['outputs'], inputs=halfy.config['inputs'], connections=status_dict)
+                return render_template('console.html', outputs=halfy.config['outputs'], inputs=halfy.config['inputs'], connections=status_dict, amp_power=amp_power)
         else:
             flash(halfy.init_status['message'])
             return redirect(url_for('error_page'))
@@ -84,6 +86,19 @@ def disconnect(output_port):
     except ValueError as err:
         hys_backend.logging.warning("Invalid output value: {}".format(err))
         flash("Warning: something didn't work. Check the logs, yo!")
+    return redirect(url_for('index'))
+
+# Power Switch
+@app.route('/power/<int:switch_direction>')
+def power_switch(switch_direction):
+    try:
+        if switch_direction is 1:
+            pr.power_on()
+        elif switch_direction is 0:
+            pr.power_off()
+    except hys_backend.CustomError as err:
+        hys_backend.logging.warning(err.error_message)
+        flash("Warning: Possible failed switch. Please check the logs.")
     return redirect(url_for('index'))
 
 # Something went wrong...

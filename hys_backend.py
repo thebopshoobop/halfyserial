@@ -12,28 +12,28 @@ class CustomError(Exception):
         self.error_message = error_message
 
 class PowerRelay:
-    def __init__(self):
-        self.power_status = self.get_power_status()
+    def pr_signal(self, message):
+        try:
+            response = subprocess.check_output(message, shell=True)
+        except subprocess.CalledProcessError as err:
+            raise CustomError("Unable to communicate with power relay: {}".format(err))
+        return response
 
     def get_power_status(self):
-        try:
-            response = subprocess.check_output("cat /sys/class/gpio/gpio87/value", shell=True)
-        except subprocess.CalledProcessError as err:
-            logging.critical("Unable to communicate with relay: {}".format(err))
+        response = self.pr_signal("cat /sys/class/gpio/gpio87/value")
+        response_value = int(response.decode()[0])
+        if response_value is 1:
+            return True
         else:
-            response_value = int(response.decode()[0])
-            if response_value is 1:
-                return True
-            else:
-                return False
+            return False
 
     def power_on(self):
         if not self.get_power_status():
-            subprocess.call("echo 1 > /sys/class/gpio/gpio87/value", shell=True)
+            self.pr_signal("echo 1 > /sys/class/gpio/gpio87/value")
 
     def power_off(self):
         if self.get_power_status():
-            subprocess.call("echo 0 > /sys/class/gpio/gpio87/value", shell=True)
+            self.pr_signal("echo 0 > /sys/class/gpio/gpio87/value")
 
 class MatrixSwitch:
     def __init__(self):

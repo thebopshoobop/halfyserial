@@ -24,14 +24,19 @@
       </div>
       {% endfor %}
       <div class="three columns">
-        <h5>All Outputs</h5>
+        <h5>All Rooms</h5>
         {% for input_port, input_label in inputs.items() %}
         <a class="button" href="/connect_all?input_port={{ input_port }}">{{ input_label }}</a>
         {% endfor %}
         <a class="button button-primary" href="/disconnect">Disconnect</a>
       </div>
     </div>
-    <div class="row">
-      <a class="button button-primary u-pull-right" href="/logout">Logout {{ session['username'] }}</a>
+    <div class="row u-pull-right">
+    {% if amp_power %}
+      <a class="button selected" href="/power/0">Amp On</a>
+    {% else %}
+      <a class="button" href="/power/1">Amp Off</a>
+    {% endif %}
+      <a class="button button-primary" href="/logout">Logout {{ session['username'] }}</a>
     </div>
 {% endblock %}
