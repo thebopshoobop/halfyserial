@@ -36,11 +36,11 @@ def login():
     else:
         return render_template('login.html')
 
-# Remove the username and redirect to index (and from there to login)
+# Remove the username and redirect to login
 @app.route('/logout')
 def logout():
     session.pop('username', None)
-    return redirect(url_for('index'))
+    return redirect(url_for('login'))
 
 # Affect a port switch and redirect to index
 @app.route('/switch')

@@ -36,11 +36,12 @@ class PowerRelay:
             self.pr_signal("echo 0 > /sys/class/gpio/gpio87/value")
 
 class MatrixSwitch:
+    lock = Lock() # A thread lock used to prevent multiple web server threads from using the serial port at once
+
     def __init__(self):
         # Parse the config file. Initialize the serial port.
         self.config = {} # A dictionary for variables gleaned from the config file
         self.init_status = {} # A dictionary containing our init status and error messages if appropriate
-        self.lock = Lock() # A thread lock used to prevent multiple web server threads from using the serial port at once
 
         self.parse_config() # Parse our config file.
         if self.init_status['success']: # If that worked, initialize our serial device
