@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo 87 > /sys/class/gpio/export
+echo out > /sys/class/gpio/gpio87/direction
+chown www-data:www-data /sys/class/gpio/gpio87/value
